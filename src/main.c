@@ -44,6 +44,9 @@ const Color viniette = {
 
 const char line1[] = "PRESS SPACEBAR";
 const char line2[] = "TO SERVE!";
+const char p1[] = "PLAYER 1";
+const char p2[] = "PLAYER 2";
+const char pwin[] = "WINS!";
 
 typedef struct {
     float x;
@@ -75,7 +78,8 @@ typedef struct {
 
     //couldnt think of a "better" place for this. its the number of rec that make up the "net"
     int net_count;
-    bool isServed; 
+    bool isServed;
+    bool isOver; 
 } GameBoard;
 
 Paddle left_paddle;
@@ -84,6 +88,9 @@ Ball ball;
 Score score;
 GameBoard board;
 
+Sound pong_wall;
+Sound pong_paddle;
+Sound pong_score;
 
 void init() {
     left_paddle.x = LPADDLE_START_X;
@@ -112,6 +119,7 @@ void init() {
     board.height = SCREEN_HEIGHT - (2 * BORDER_SIZE);
     board.net_count = (board.height/NET_LENGTH);
     board.isServed = false;
+    board.isOver = false;
     
     //set seed for raylib RNG using system time
     SetRandomSeed((unsigned int) time(NULL));
@@ -159,59 +167,129 @@ char* getScoreAsString(unsigned char playerscore){
     }
 }
 
-void update(){
-    if(!board.isServed){
-        if(IsKeyPressed(KEY_SPACE)){
-            board.isServed = true;
-            ball.isVisible = true;
-            unsigned int tmp = GetRandomValue(0, 1);
-            ball.isNegX = (bool)tmp;
-            tmp = GetRandomValue(0, 1);
-            ball.isNegY = (bool)tmp;
-        } else {
-            return;
-        }
+void checkWinner(){
+    if(score.player1 >= 10 || score.player2 >= 10){
+        board.isOver = true;
+    }
+}
+
+void checkScore(){
+    if(ball.x > (right_paddle.x + right_paddle.width)){
+        ball.isVisible = false;
+        ball.x = BALL_START_X;
+        ball.y = BALL_START_Y;
+        score.player1++;
+        board.isServed = false;
+        PlaySound(pong_score);
     }
     
-    if(IsKeyDown(KEY_W)){
-        left_paddle.y -= 0.02f;
-        if(left_paddle.y < board.y){
-            left_paddle.y = board.y;
+    if((ball.x) < left_paddle.x - left_paddle.width){
+        ball.isVisible = false;
+        ball.x = BALL_START_X;
+        ball.y = BALL_START_Y;
+        score.player2++;
+        board.isServed = false;
+        PlaySound(pong_score);
+    }
+}
+
+void checkPaddleCollision(){
+    if((ball.x + ball.width > right_paddle.x)){
+        if(ball.y > right_paddle.y && ball.y < right_paddle.y + right_paddle.height){
+            ball.isNegX = !ball.isNegX;
+            ball.isNegY = !ball.isNegY;
+            PlaySound(pong_paddle);
         }
     }
-    if(IsKeyDown(KEY_S)){
-        left_paddle.y += 0.02f;
-        if(left_paddle.y > (board.height - PADDLE_HEIGHT + BORDER_SIZE)){
-            left_paddle.y = (board.height - PADDLE_HEIGHT + BORDER_SIZE);
+    if(ball.x < left_paddle.x+left_paddle.width){
+        if(ball.y > left_paddle.y && ball.y < left_paddle.y + left_paddle.height){
+            ball.isNegX = !ball.isNegX;
+            ball.isNegY = !ball.isNegY;
+            PlaySound(pong_paddle);
         }
     }
-    if(IsKeyDown(KEY_UP)){
-        right_paddle.y -= 0.02f;
-        if(right_paddle.y < board.y){
-            right_paddle.y = board.y;
+}
+
+void debug(){
+    if(IsKeyPressed(KEY_F1)){
+        score.player1 = 10;
+    }
+    if(IsKeyPressed(KEY_F2)){
+        score.player2 = 10;
+    }
+}
+
+void update(){
+
+    //debug();
+
+    if(!board.isOver){
+        if(!board.isServed){
+            if(IsKeyPressed(KEY_SPACE)){
+                board.isServed = true;
+                ball.isVisible = true;
+                unsigned int tmp = GetRandomValue(0, 1);
+                ball.isNegX = (bool)tmp;
+                tmp = GetRandomValue(0, 1);
+                ball.isNegY = (bool)tmp;
+            } else {
+                return;
+            }
+        }
+    
+        if(IsKeyDown(KEY_W)){
+            left_paddle.y -= 0.02f;
+            if(left_paddle.y < board.y){
+                left_paddle.y = board.y;
+            }
+        }
+        if(IsKeyDown(KEY_S)){
+            left_paddle.y += 0.02f;
+            if(left_paddle.y > (board.height - PADDLE_HEIGHT + BORDER_SIZE)){
+                left_paddle.y = (board.height - PADDLE_HEIGHT + BORDER_SIZE);
+            }
+        }
+        if(IsKeyDown(KEY_UP)){
+            right_paddle.y -= 0.02f;
+            if(right_paddle.y < board.y){
+                right_paddle.y = board.y;
+            }
+
+        }
+        if(IsKeyDown(KEY_DOWN)){
+            right_paddle.y += 0.02f;
+            if(right_paddle.y > (board.height - PADDLE_HEIGHT + BORDER_SIZE)){
+                right_paddle.y = (board.height - PADDLE_HEIGHT + BORDER_SIZE);
+            }
         }
 
-    }
-    if(IsKeyDown(KEY_DOWN)){
-        right_paddle.y += 0.02f;
-        if(right_paddle.y > (board.height - PADDLE_HEIGHT + BORDER_SIZE)){
-            right_paddle.y = (board.height - PADDLE_HEIGHT + BORDER_SIZE);
-        }
-    }
+        if(ball.isVisible){
+            if(ball.isNegX){
+                ball.x += 0.01f; 
+            } else {
+                ball.x -= 0.01f;
+            }
 
-    if(ball.isVisible){
-        if(ball.isNegX){
-            ball.x += 0.01f;
-        } else {
-            ball.x -= 0.01f;
+            if(ball.isNegY){
+                ball.y += 0.01f;
+                if(ball.y > board.height - ball.height){
+                    ball.y = board.height - ball.height;
+                    ball.isNegY = false;
+                    PlaySound(pong_wall);
+                }
+            } else {
+                ball.y -= 0.01f;
+                 if(ball.y < board.y){
+                    ball.y = board.y;
+                    ball.isNegY = true;
+                    PlaySound(pong_wall);
+                }
+            }
         }
-
-        if(ball.isNegY){
-            ball.y += 0.01f;
-        } else {
-            ball.y -= 0.01f;
-        }
-    }
+        checkPaddleCollision();
+        checkScore();
+        checkWinner();
+    } 
 }
 
 void drawUI(){
@@ -231,13 +309,24 @@ void drawUI(){
     DrawText(getScoreAsString(score.player1), (SCREEN_WIDTH/2) - (NET_WIDTH *2) - TEXT_SIZE, BORDER_SIZE + (NET_LENGTH/2), TEXT_SIZE, WHITE);
     DrawText(getScoreAsString(score.player2), (SCREEN_WIDTH/2) - (NET_WIDTH *2) + TEXT_SIZE, BORDER_SIZE + (NET_LENGTH/2), TEXT_SIZE, WHITE);
 
-    if(!board.isServed){
+    if(!board.isOver){
+        if(!board.isServed){
+            DrawRectangle(SCREEN_WIDTH/8, SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8,
+                SCREEN_WIDTH/2 + SCREEN_WIDTH/4, SCREEN_HEIGHT/2 - SCREEN_HEIGHT/4, viniette);
+            DrawText(line1, SCREEN_WIDTH/2 - (MeasureText(line1, TEXT_SIZE/2))/2, SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE/2 + 4, TEXT_SIZE/2, WHITE);
+            DrawText(line2, SCREEN_WIDTH/2 - (MeasureText(line2, TEXT_SIZE/2))/2, SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE + 8, TEXT_SIZE/2, WHITE);
+        }
+    } else {
         DrawRectangle(SCREEN_WIDTH/8, SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8,
-            SCREEN_WIDTH/2 + SCREEN_WIDTH/4, SCREEN_HEIGHT/2 - SCREEN_HEIGHT/4, viniette);
-        DrawText(line1, SCREEN_WIDTH/2 - (MeasureText(line1, TEXT_SIZE/2))/2, SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE/2 + 4, TEXT_SIZE/2, WHITE);
-        DrawText(line2, SCREEN_WIDTH/2 - (MeasureText(line2, TEXT_SIZE/2))/2, SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE + 8, TEXT_SIZE/2, WHITE);
+                SCREEN_WIDTH/2 + SCREEN_WIDTH/4, SCREEN_HEIGHT/2 - SCREEN_HEIGHT/4, viniette);
+        if(score.player1 > score.player2){
+            DrawText(p1, SCREEN_WIDTH/2 - (MeasureText(line1, TEXT_SIZE/2)/4), SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE/2 + 4, TEXT_SIZE/2, WHITE);
+            DrawText(pwin, SCREEN_WIDTH/2 - (MeasureText(line2, TEXT_SIZE/2)/4), SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE + 8, TEXT_SIZE/2, WHITE);
+        } else {
+            DrawText(p2, SCREEN_WIDTH/2 - (MeasureText(line1, TEXT_SIZE/2)/4), SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE/2 + 4, TEXT_SIZE/2, WHITE);
+            DrawText(pwin, SCREEN_WIDTH/2 - (MeasureText(line2, TEXT_SIZE/2)/4), SCREEN_HEIGHT/4 + SCREEN_HEIGHT/8 + TEXT_SIZE + 8, TEXT_SIZE/2, WHITE);
+        }
     }
-
 
 }
 
@@ -246,7 +335,7 @@ void drawObjs(){
     DrawRectangle((int)right_paddle.x, (int)right_paddle.y, right_paddle.width, right_paddle.height, WHITE);
 
     if(ball.isVisible){
-        DrawRectangle((int)ball.x, (int)ball.y, ball.width, ball.height, BLUE);
+        DrawRectangle((int)ball.x, (int)ball.y, ball.width, ball.height, WHITE);
     }
 }
 
@@ -255,6 +344,11 @@ int main(){
     init();
 
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "PONG!");
+    InitAudioDevice();
+
+    pong_wall = LoadSound("res/pong_wall.ogg");
+    pong_paddle = LoadSound("res/pong_paddle.ogg");
+    pong_score = LoadSound("res/pong_score.ogg");
 
     while (!WindowShouldClose()) {
         
@@ -268,6 +362,13 @@ int main(){
 
         EndDrawing();
     }
+
+    UnloadSound(pong_wall);
+    UnloadSound(pong_paddle);
+    UnloadSound(pong_score);
+
+    CloseAudioDevice();
+    CloseWindow();
     
 
     return 0;
